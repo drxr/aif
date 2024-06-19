@@ -25,13 +25,6 @@ with st.sidebar:
     rfm_button = st.sidebar.button(label='RFM analysis') # кнопка РФМ
     # img_file_buffer = st.sidebar.button(label='make selfie') # эта кнопка захватывает изображение с камеры компа/ноута
 
-# работа кнопки прямая загрузка файлов: загружаем файл через dropbox
-if direct_file_button:
-        
-        
-            pays_to_csv('pays.csv')
-            st.dataframe(orders.sample(5))
-
 # работа кнопки РФМ: делаем РФМ анализ и выводим на экран основные моменты
 if rfm_button:
     uploaded_file = st.file_uploader('Загрузи файл для анализа')
