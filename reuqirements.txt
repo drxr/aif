@@ -1,0 +1,11 @@
+streamlit
+pandas
+matplotlib.pyplot
+seaborn
+plotly.graph_objects
+plotly.express
+plotly.io
+yadisk
+tqdm
+os
+zipfile
