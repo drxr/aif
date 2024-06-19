@@ -6,7 +6,6 @@ import seaborn as sns
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
-import yadisk
 import os
 import zipfile
 
@@ -17,112 +16,16 @@ sns.set_style('whitegrid')
 pio.templates.default = 'seaborn'
 
 
-# переменные яндекс диска
-app_id = '8771b2fc388945d49de1fb2baf9293f4'
-secret_id = '60be4aaf6b0541dcb6cb3db7692f05e0'
-ya_token = 'y0_AgAAAAApvuEnAAYAfQAAAADwkudoOCEmxONNR4Cq_OUWmJ6TOhh4iwE'
-
-# меняем рабочую директорию на проект аиф
-# os.chdir('/projects/aif/')
-
 # титульный текст приложения
 st.title('АиФ "Доброе сердце"')
-
-# пишем функцию для загрузки файлов с яндекс диска
-@st.cache_data(experimental_allow_widgets=True)  # эта строка дает кеширование - работает быстрее
-def load_data() -> None:
-
-    'Функция для загрузки файлов АиФ с яндекс диска'
-
-    # подключаемся к диску и создаем список файлов для загрузки
-    st.write('Подключаюсь к диску')
-    y = yadisk.YaDisk(app_id, secret_id, ya_token)
-    if y.check_token():
-        st.write('Токен корректный')
-    st.write('Найдены файлы для загрузки:')
-
-    list_of_files = []  # переменная списка файлов
-    
-    # добавляем названия скачиваемых файлов в список загрузки
-    for el in list(y.listdir('aif')):
-        if el['path'].endswith('.csv'):
-            list_of_files.append(el['path'])
-    
-    st.write(list_of_files)  # печатаем список в приложении
-
-    # скачиваем файлы в директорию проекта
-    for file in list_of_files:
-        with st.spinner(f"Downloading {str(file.split('/')[-1])}"):
-            y.download(file.split(':')[1], file.split('/')[-1])
-        st.success(f"Done! {str(file.split('/')[-1])} loaded")
-
-    list_of_dfs = [] # список в который мы загрузим три однотипных датасета 
-
-    # загружаем датасеты в список
-    for el in os.listdir():
-        if 'dobro' in el:
-            list_of_dfs.append(pd.read_csv(el, sep=';', encoding='utf8'))
-
-    # сливаем датасеты в один общий
-    final = pd.concat(list_of_dfs)
-
-    # меняем названия колонок
-    final.columns = ['customer_action_id',
-            'action_template_name',
-            'action_system_template_name', 'action_datetime',
-            'action_datetime_utc', 'action_brand_system_name',
-            'channel_id', 'channel_name',
-            'external_channel_id',
-            'channel_id_system_name',
-            'channel_campaign', 'channel_utm_source',
-            'utm_medium', 'utm_content',
-            'utm_term', 'id_backend',
-            'website_id',
-            'user_id',
-            'action_id',
-            'template_sysname',
-            'template_name',
-            'mailing_action', 'mailing_name',
-            'mailing_sysname', 'mailing_id',
-            'mailing_varnum', 'mailing_link',
-            'reason_not_sent',
-            'reason_not_sent_name',
-            'reason_sysname',
-            'reason_name']
-    final.to_csv('final.csv')
-
-    # создаем архив zip
-    with zipfile.ZipFile('final.zip', 'w') as myzip:
-        myzip.write('final.csv')
-
-    # добавляем кнопку скачать архив, который мы создали выше
-    st.download_button(
-    help='Архив файлов АиФ Доброе сердце',
-    label="Скачать архив c объединным файлом :sunglasses:",
-    data=open('final.zip', 'rb').read(),
-    file_name='final.zip',
-    mime='application/zip'
-    )
-
-# загружаем данные уже с директории приложения
-channels = pd.read_csv('final.csv')
-orders = pd.read_csv('paymentsaif.csv', sep=';', encoding='cp1251', usecols=[2, 3, 5, 17, 20, 21, 30])
-orders.columns = ['order_datetime', 'channel_id', 'channel_name', 'order_aim', 'order_sum', 'order_status', 'user_id']
-orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
-pays = orders[orders.order_status == 'Paid']
 
 # создаем боковое меню
 with st.sidebar:
     st.subheader("Выберите опцию") # заголовок меню
-    download = st.sidebar.button(label='Download files from yadisk', type='primary') # кнопка загрузки
     direct_file_button = st.sidebar.button(label='Upload files for analysis')
     rfm_button = st.sidebar.button(label='RFM analysis') # кнопка РФМ
     channels = st.sidebar.button(label='Other staff') # кнопка когортного анализа
     # img_file_buffer = st.sidebar.button(label='make selfie') # эта кнопка захватывает изображение с камеры компа/ноута
-
-# работа кнопки скачать: запускается функция загрузки файлов
-if download:
-    load_data()
 
 # работа кнопки прямая загрузка файлов: загружаем файл через dropbox
 if direct_file_button:
