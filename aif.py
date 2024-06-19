@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
 import yadisk
-from tqdm import tqdm
 import os
 import zipfile
 
@@ -52,7 +51,7 @@ def load_data() -> None:
     st.write(list_of_files)  # печатаем список в приложении
 
     # скачиваем файлы в директорию проекта
-    for file in tqdm(list_of_files):
+    for file in list_of_files:
         with st.spinner(f"Downloading {str(file.split('/')[-1])}"):
             y.download(file.split(':')[1], file.split('/')[-1])
         st.success(f"Done! {str(file.split('/')[-1])} loaded")
