@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import plotly.io as pio
 import os
-import zipfile
+
 
 # настройки
 pd.set_option('display.max_columns', None)
@@ -35,10 +35,12 @@ if direct_file_button:
             orders.columns = ['order_datetime', 'channel_id', 'channel_name', 'order_aim', 'order_sum', 'order_status', 'user_id']
             orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
             pays = orders[orders.order_status == 'Paid']
+            pays_to_csv('pays.csv')
             st.dataframe(orders.sample(5))
 
 # работа кнопки РФМ: делаем РФМ анализ и выводим на экран основные моменты
 if rfm_button:
+    pays = pd.read_csv('pays.csv')
 
     # выводим на экран количество счетов
     st.write(f'Всего оплаченных счетов: {pays.shape[0]}')
