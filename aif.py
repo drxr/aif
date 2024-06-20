@@ -11,10 +11,6 @@ pd.set_option('display.max_columns', None)
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_style('whitegrid')
 
-
-# меняем рабочую директорию на проект аиф
-os.chdir('/projects/aif/')
-
 # титульный текст приложения
 st.title('АиФ "Доброе сердце"')
 
