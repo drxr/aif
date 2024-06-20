@@ -167,6 +167,7 @@ if rfm_button:
     
     rfm_stats = rfm_stats.merge(test_df.groupby('RFM')['order_sum'].apply(list).reset_index(), left_on='RFM сегмент', right_on='RFM')
     rfm_stats = rfm_stats.drop(columns=['RFM'])
+    rfm_stats.order_sum = rfm_stats.order_sum.astype('float')
     # выводим на экран итоговую таблицу
     (st.dataframe(rfm_stats.set_index('RFM сегмент'),
                   column_config={
