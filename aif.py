@@ -18,12 +18,13 @@ st.title('АиФ "Доброе сердце"')
 
 # создаем боковое меню
 st.sidebar.subheader("Выберите опцию") # заголовок меню
-uploaded_file = st.sidebar.file_uploader(label='Загрузите файлы c платежами для анализа (csv)', type=['csv'])
+uploaded_file_rfm = st.sidebar.file_uploader(label='Загрузите файлы c платежами для анализа (csv)', type=['csv'])
 rfm_button = st.sidebar.button('RFM анализ')
+uploaded_file_channels = st.sidebar.file_uploader(label='Загрузите файлы c пользователями для анализа (xlsx)', type=['xlsx'])
 
-if uploaded_file is not None:
+if uploaded_file_rfm is not None:
     # orders = pd.read_csv(uploaded_file)
-    orders = pd.read_csv(uploaded_file, sep=';', encoding='cp1251', usecols=[2, 3, 5, 17, 20, 21, 30])
+    orders = pd.read_csv(uploaded_file_rfm, sep=';', encoding='cp1251', usecols=[2, 3, 5, 17, 20, 21, 30])
     orders.columns = ['order_datetime', 'channel_id', 'channel_name', 'order_aim', 'order_sum', 'order_status', 'user_id']
     orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
     pays = orders[orders.order_status == 'Paid']
@@ -49,6 +50,7 @@ if rfm_button:
     st.write(f'Сумма оплат с ошибкой: **{fails.order_sum.sum():,}** рублей')
     min_date, max_date = pays.order_datetime.min(), pays.order_datetime.max()
 
+    # График с ошибками в платежах
     fig_mistakes = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
     fig_mistakes.add_trace(go.Pie(labels=['Оплачено', 'Не оплачено', 'Ошибка'], 
                                   values=[pays.order_sum.sum(), unpays.order_sum.sum(), fails.order_sum.sum()], 
@@ -57,27 +59,29 @@ if rfm_button:
                                   values=[pays.order_sum.count(), unpays.order_sum.count(), fails.order_sum.count()], 
                                   name="Количество"), 1, 2)
 
-    # Use `hole` to create a donut-like pie chart
     fig_mistakes.update_traces(hole=.6, hoverinfo="label+percent+name")
 
     fig_mistakes.update_layout(
         title_text="Доля неоплаченных пожертвований и ошибок платежей",
-        # Add annotations in the center of the donut pies.
         annotations=[dict(text='В рублях', x=0.16, y=0.5, font_size=20, showarrow=False),
                  dict(text='Количество', x=0.87, y=0.5, font_size=20, showarrow=False)])
     st.plotly_chart(fig_mistakes)
 
-    # бабахаем график
-    pays_line = pays.groupby('order_datetime')['order_sum'].sum().reset_index()
-    fig_sales = plt.figure()
-    plt.title('Динамика пожертвований по дням, руб.')
-    sns.lineplot(x=pays_line.order_datetime,
-             y=pays_line.order_sum,
-             color='grey')
-    sns.lineplot(x=pays_line.order_datetime,
-             y=pays_line.order_sum.rolling(15).mean(),
-             color='crimson')
-    st.pyplot(fig_sales)
+    # бабахаем график с динамикой платежей
+    fig_dinamics = go.Figure()
+    fig_dinamics.add_traces(go.Scatter(x=pays_line.order_datetime, 
+                                       y=pays_line.order_sum, 
+                                       line=dict(color="lightgrey"),
+                                       mode='lines', name = 'Платежи'))
+    fig_dinamics.add_traces(go.Scatter(x=pays_line.order_datetime, 
+                                       y=pays_line.order_sum.rolling(15).mean(), 
+                                       line=dict(color="crimson", width=2),
+                                       mode='lines', name = 'Платежи скользящее среднее'))
+    fig_dinamics.update_layout(legend=dict(yanchor="top",
+                                  y=0.99,
+                                  xanchor="left", x=0.01,
+                                  orientation='h'))
+    st.plotly_chart(fig_dinamics)
 
     st.markdown('### RFM анализ')
     # определяем период анализа
@@ -193,3 +197,5 @@ if rfm_button:
         file_name="rfm_users.csv",
         mime="text/csv",
     )
+
+    
