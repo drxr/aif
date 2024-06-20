@@ -172,7 +172,7 @@ if rfm_button:
     rfm_stats = rfm_stats.merge(test_df.groupby('RFM')['order_sum'].apply(list).reset_index(), left_on='RFM сегмент', right_on='RFM')
     rfm_stats = rfm_stats.drop(columns=['RFM'])
     # выводим на экран итоговую таблицу
-    st.data_editor(rfm_stats.set_index('RFM сегмент').style.format(thousands=',', decimal='.', precision=2).background_gradient(cmap='Blues'),
+    st.data_editor(rfm_stats.set_index('RFM сегмент'),
                    column_config={
         "test": st.column_config.ProgressColumn(  # этот код делает правую колонку с прогресс баром
             "Сумма донаций",
@@ -186,14 +186,7 @@ if rfm_button:
             help="The sales volume in the last 6 months",
             y_min=0,
             y_max=500000,
-        ),
-        'RFM сегмент': st.column_config.TextColumn(width='small'), # этот код и ниже уменьшает ширину колонок
-        'Человек в сегменте, чел.': st.column_config.NumberColumn(width='small'), # почитаейте про stramlit column_config
-        'Количество пожертвований, ед.': st.column_config.NumberColumn(width='small'), # шикарнейший инструмент для кастомизации
-        'Среднее пожертвование, руб.': st.column_config.NumberColumn(width='small'),
-        'Сумма пожертвований, руб.': st.column_config.NumberColumn(width='small'),
-    },
-    hide_index=True, height=980)
+        ),}, hide_index=True, height=980)
 
 # этот код делает когортный анализ
 # его вы напишите сами по аналогии с РФМ выше
