@@ -3,23 +3,23 @@ import streamlit as st  # это стримлит - библиотека, кот
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
-
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # настройки
 pd.set_option('display.max_columns', None)
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_style('whitegrid')
 
+
 # титульный текст приложения
 st.title('АиФ "Доброе сердце"')
 
-# пишем функцию для загрузки файлов с яндекс диска
-
 # создаем боковое меню
 st.sidebar.subheader("Выберите опцию") # заголовок меню
-uploaded_file = st.sidebar.file_uploader(label='Upload files for analysis')
-rfm_button = st.sidebar.button('RFM analysis')
+uploaded_file = st.sidebar.file_uploader(label='Загрузите файлы c платежами для анализа (csv)', type=['csv'])
+rfm_button = st.sidebar.button('RFM анализ')
 
 if uploaded_file is not None:
     # orders = pd.read_csv(uploaded_file)
@@ -27,22 +27,50 @@ if uploaded_file is not None:
     orders.columns = ['order_datetime', 'channel_id', 'channel_name', 'order_aim', 'order_sum', 'order_status', 'user_id']
     orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
     pays = orders[orders.order_status == 'Paid']
+    unpays = orders[orders.order_status == 'notpaid']
+    fails = orders[orders.order_status == 'fail']
     pays.to_csv('pays.csv')
-    st.dataframe(orders.sample(5))
+    st.write('Файл с платежами успешно загружен и обработан')
 
 # работа кнопки РФМ: делаем РФМ анализ и выводим на экран основные моменты
 if rfm_button:
 
     #pays = pd.read_csv('pays.csv')
+    st.subheader('Общая информация')
     # выводим на экран количество счетов
-    st.write(f'Всего оплаченных счетов: {pays.shape[0]}')
-    st.write(f'Сумма оплаченных счетов: {pays.order_sum.sum():,} рублей')
-    st.write(f'Средний чек: {pays.order_sum.sum()/ pays.shape[0]:.2f} рублей')
+    st.write(f'Всего оплаченных счетов: **{pays.shape[0]}**')
+    st.write(f'Сумма оплаченных счетов: **{pays.order_sum.sum():,}** рублей')
+    st.write(f'Средний чек: **{pays.order_sum.sum()/ pays.shape[0]:.2f}** рублей')
+    st.write('---')
+    st.write(f'Всего неоплаченных счетов: **{unpays.shape[0]}**')
+    st.write(f'Сумма неоплаченных счетов: **{unpays.order_sum.sum():,}** рублей')
+    st.write('---')
+    st.write(f'Всего оплат с ошибкой: **{fails.shape[0]}**')
+    st.write(f'Сумма оплат с ошибкой: **{fails.order_sum.sum():,}** рублей')
     min_date, max_date = pays.order_datetime.min(), pays.order_datetime.max()
-    
+
+    fig_mistakes = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
+    fig_mistakes.add_trace(go.Pie(labels=['Оплачено', 'Не оплачено', 'Ошибка'], 
+                                  values=[pays.order_sum.sum(), unpays.order_sum.sum(), fails.order_sum.sum()], 
+                                  name="В рублях"), 1, 1)
+    fig_mistakes.add_trace(go.Pie(labels=['Оплачено', 'Не оплачено', 'Ошибка'], 
+                                  values=[pays.order_sum.count(), unpays.order_sum.count(), fails.order_sum.count()], 
+                                  name="Количество"), 1, 2)
+
+    # Use `hole` to create a donut-like pie chart
+    fig_mistakes.update_traces(hole=.6, hoverinfo="label+percent+name")
+
+    fig_mistakes.update_layout(
+        title_text="Доля неоплаченных пожертвований и ошибок платежей",
+        # Add annotations in the center of the donut pies.
+        annotations=[dict(text='В рублях', x=0.16, y=0.5, font_size=20, showarrow=False),
+                 dict(text='Количество', x=0.87, y=0.5, font_size=20, showarrow=False)])
+    st.plotly_chart(fig_mistakes)
+
     # бабахаем график
     pays_line = pays.groupby('order_datetime')['order_sum'].sum().reset_index()
     fig_sales = plt.figure()
+    plt.title('Динамика пожертвований по дням, руб.')
     sns.lineplot(x=pays_line.order_datetime,
              y=pays_line.order_sum,
              color='grey')
@@ -69,66 +97,20 @@ if rfm_button:
     pays['M_value'] = pays.groupby('user_id')['order_sum'].transform('sum')
     pays['F_value'] = pays.groupby('user_id')['user_id'].transform('count') / pays.period
 
-    # создаем и печатаем боксплот для R
-    fig_R_value = plt.figure(figsize=(12, 4))
-    color_r = 'crimson'
-    (
-        plt.boxplot(x=pays.R_value, notch=True, vert=False,
-                boxprops=dict(color=color_r),
-                capprops=dict(color=color_r),
-                whiskerprops=dict(color=color_r),
-                flierprops=dict(color=color_r, markeredgecolor=color_r),
-                medianprops=dict(color=color_r)
-                ))
-    plt.title('Распределение значений R-value')
-    plt.ylabel('R_value')
-    st.pyplot(fig_R_value)
-
     # бьем R на ранги
     r_bins = [0, 225, 547, pays.R_value.max()]
     r_labels = [3, 2, 1]
     pays['R'] = pd.cut(pays.R_value, bins=r_bins, labels=r_labels)
-    st.write('Выбросы отсутствуют. Значения разделены на 3 ранга')
-
-    # создаем и выводим на экран боксплот для F   
-    fig_F_value = plt.figure(figsize=(12, 4))
-    (
-        plt.boxplot(x=pays.F_value, notch=True, vert=False,
-                boxprops=dict(color=color_r),
-                capprops=dict(color=color_r),
-                whiskerprops=dict(color=color_r),
-                flierprops=dict(color=color_r, markeredgecolor=color_r),
-                medianprops=dict(color=color_r)
-                ))
-    plt.title('Распределение значений F-value')
-    plt.ylabel('F_value')
-    st.pyplot(fig_F_value)
 
     # бьем F на ранги
     f_bins = [0, .027, .11, pays.F_value.max()]
     f_labels = [1, 2, 3]
     pays['F'] = pd.cut(pays.F_value, bins=f_bins, labels=f_labels)
-    st.write('Выбросы присутствуют. Значения очищены и разбиты на 3 ранга')
-
-    # создаем и выводим на экран боксплот для M
-    fig_M_value = plt.figure(figsize=(12, 4))
-    (
-        plt.boxplot(x=pays.M_value, notch=True, vert=False,
-                boxprops=dict(color=color_r),
-                capprops=dict(color=color_r),
-                whiskerprops=dict(color=color_r),
-                flierprops=dict(color=color_r, markeredgecolor=color_r),
-                medianprops=dict(color=color_r)
-                ))
-    plt.title('Распределение значений M-value')
-    plt.ylabel('M_value')
-    st.pyplot(fig_M_value)
 
     # бьем М на ранги
     m_bins = [-0.1, 600, 2800, pays.M_value.max()]
     m_labels = [1, 2, 3]
     pays['M'] = pd.cut(pays.M_value, bins=m_bins, labels=m_labels)
-    st.write('Выбросы присутствуют. Значения очищены и разбиты на 3 ранга')
 
     # Сцеплаем ранги в общий ранг RFM
     pays['RFM'] = pays.R.astype('str') + pays.F.astype('str') + pays.M.astype('str')
@@ -167,8 +149,8 @@ if rfm_button:
     
     rfm_stats = rfm_stats.merge(test_df.groupby('RFM')['order_sum'].apply(list).reset_index(), left_on='RFM сегмент', right_on='RFM')
     rfm_stats = rfm_stats.drop(columns=['RFM'])
+
     # выводим на экран итоговую таблицу
-    
     rfm_stats['Человек в сегменте, чел.'] =  rfm_stats['Человек в сегменте, чел.'].astype('float')
     rfm_stats['Количество пожертвований, ед.'] = rfm_stats['Количество пожертвований, ед.'].astype('float')
     rfm_stats['Сумма пожертвований, руб.'] = rfm_stats['Сумма пожертвований, руб.'].astype('float')
@@ -197,18 +179,17 @@ if rfm_button:
     },
     hide_index=True, height=980)
 
-# этот код делает когортный анализ
-# его вы напишите сами по аналогии с РФМ выше
+    final = pays[['user_id', 'RFM']]
 
-# если раскоментировать код ниже
-# у вас появится кнопка для захвата изображения с камеры
-# селфи сделать для портфолио
-# if img_file_buffer:
-#     my_photo = st.camera_input("Take a picture")
-#     if my_photo is not None:
-#     # To read image file buffer as bytes:
-#     # bytes_data = my_photo.getvalue()
-#     # Check the type of bytes_data:
-#     # Should output: <class 'bytes'>
-#     # st.write(type(bytes_data))
-#         st.image(my_photo)
+    def convert_df(df):
+        # IMPORTANT: Cache the conversion to prevent computation on every rerun
+        return df.to_csv().encode("utf-8")
+
+    csv = convert_df(final)
+
+    st.download_button(
+        label="Скачать доноров с RFM сегментом",
+        data=csv,
+        file_name="rfm_users.csv",
+        mime="text/csv",
+    )
