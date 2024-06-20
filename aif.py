@@ -51,6 +51,7 @@ if rfm_button:
     min_date, max_date = pays.order_datetime.min(), pays.order_datetime.max()
 
     # График с ошибками в платежах
+    pays_line = pays.groupby('order_datetime')['order_sum'].sum().reset_index()
     fig_mistakes = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
     fig_mistakes.add_trace(go.Pie(labels=['Оплачено', 'Не оплачено', 'Ошибка'], 
                                   values=[pays.order_sum.sum(), unpays.order_sum.sum(), fails.order_sum.sum()], 
