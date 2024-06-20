@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 pd.set_option('display.max_columns', None)
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_style('whitegrid')
+st.set_page_config(layout="wide")
 
 
 # титульный текст приложения
