@@ -164,8 +164,8 @@ if uploaded_file is not None:
         rfm_stats = rfm_stats.merge(test_df.groupby('RFM')['order_sum'].apply(list).reset_index(), left_on='RFM сегмент', right_on='RFM')
         rfm_stats = rfm_stats.drop(columns=['RFM'])
         # выводим на экран итоговую таблицу
-        st.data_editor(rfm_stats.set_index('RFM сегмент').style.format(thousands=',', decimal='.', precision=2).background_gradient(cmap='Blues'),
-                           column_config={
+        (st.data_editor(rfm_stats.set_index('RFM сегмент').style.format(thousands=',', decimal='.', precision=2).background_gradient(cmap='Blues'),
+                column_config={
             "test": st.column_config.ProgressColumn(  # этот код делает правую колонку с прогресс баром
                 "Сумма донаций",
                 help="Общая сумма донаций",
@@ -185,7 +185,7 @@ if uploaded_file is not None:
                 'Среднее пожертвование, руб.': st.column_config.NumberColumn(width='small'),
                 'Сумма пожертвований, руб.': st.column_config.NumberColumn(width='small'),
             },
-            hide_index=True, height=980)
+            hide_index=True, height=980))
 
 
 # если раскоментировать код ниже
