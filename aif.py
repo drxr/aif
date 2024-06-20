@@ -169,8 +169,14 @@ if rfm_button:
     rfm_stats = rfm_stats.drop(columns=['RFM'])
     rfm_stats.order_sum = rfm_stats.order_sum.astype('float')
     # выводим на экран итоговую таблицу
-    (st.dataframe(rfm_stats.set_index('RFM сегмент'),
-                  column_config={
+    
+    rfm_stats['Человек в сегменте, чел.'] =  rfm_stats['Человек в сегменте, чел.'].astype('float')
+    rfm_stats['Количество пожертвований, ед.'] = rfm_stats['Количество пожертвований, ед.'].astype('float')
+    rfm_stats['Сумма пожертвований, руб.'] = rfm_stats['Сумма пожертвований, руб.'].astype('float')
+    rfm_stats['test'] = rfm_stats['test'].astype('float')
+
+    st.dataframe(rfm_stats.set_index('RFM сегмент'),
+                   column_config={
         "test": st.column_config.ProgressColumn(  # этот код делает правую колонку с прогресс баром
             "Сумма донаций",
             help="Общая сумма донаций",
@@ -189,7 +195,8 @@ if rfm_button:
         'Количество пожертвований, ед.': st.column_config.NumberColumn(width='small'), # шикарнейший инструмент для кастомизации
         'Среднее пожертвование, руб.': st.column_config.NumberColumn(width='small'),
         'Сумма пожертвований, руб.': st.column_config.NumberColumn(width='small'),
-    }, hide_index=True, height=980))
+    },
+    hide_index=True, height=980)
 
 # этот код делает когортный анализ
 # его вы напишите сами по аналогии с РФМ выше
