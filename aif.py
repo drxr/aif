@@ -108,6 +108,7 @@ if rfm_button:
     month_pays['month'] = month_pays.month.astype('str')
     fig_months = px.bar(month_pays, y='order_sum', x='month', text_auto='.2s',
             title="Помесячная сумма пожертвований, руб.")
+    fig_months.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
     st.plotly_chart(fig_months)
 
     # рекуренты
