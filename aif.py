@@ -21,21 +21,37 @@ st.title('АиФ "Доброе сердце"')
 
 # создаем боковое меню
 st.sidebar.subheader("Выберите опцию") # заголовок меню
-uploaded_file_rfm = st.sidebar.file_uploader(label='Загрузите файлы c платежами для анализа (csv)', type=['csv'])
-rfm_button = st.sidebar.button('RFM анализ')
-uploaded_file_channels = st.sidebar.file_uploader(label='Загрузите файлы c пользователями для анализа (xlsx)', type=['xlsx'])
-    
+uploaded_file_rfm = (st.sidebar.
+                     file_uploader(label='Загрузите файлы c платежами для анализа (csv)', 
+                                   type=['csv'])) # кнопка для аплоада файлов для рфм
+
+rfm_button = st.sidebar.button('RFM анализ') # кнопка запуска рфм анализа
+
+uploaded_file_channels = (st.sidebar.
+                          file_uploader(label='Загрузите файлы c пользователями для анализа (xlsx)', 
+                                        type=['xlsx'])) # кнопка для аплоада прочих файлов
+
+# обработчик загрузки файлов для рфм    
 if uploaded_file_rfm is not None:
-    # orders = pd.read_csv(uploaded_file)
-    orders = pd.read_csv(uploaded_file_rfm, sep=';', encoding='cp1251', usecols=[2, 3, 5, 14, 15, 17, 20, 21, 30])
+    orders = pd.read_csv(uploaded_file_rfm, sep=';', 
+                         encoding='cp1251', 
+                         usecols=[2, 3, 5, 14, 15, 17, 20, 21, 30],
+                         low_memory=False)
+    
     orders.columns = ['order_datetime', 'channel_id', 'channel_name', 
                       'recurrent', 'repayment',
                       'order_aim', 'order_sum', 'order_status', 'user_id']
+    
     orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
+    users = orders[['user_id', 'order_datetime']]
     st.write('Файл с платежами успешно загружен и обработан')
     st.write('Выберите период для анализа')
+
+    # переменные слайдера дат
     MIN_MAX_RANGE = (orders.order_datetime.min(), orders.order_datetime.max())
     PRE_SELECTED_DATES = (orders.order_datetime.max() - pd.Timedelta('30d'), orders.order_datetime.max())
+
+    # слайдер дат: выбор периода анализа
     selected_min, selected_max = st.slider(
     "Выбор границ анализируемого периода",
     value=PRE_SELECTED_DATES,
@@ -44,15 +60,17 @@ if uploaded_file_rfm is not None:
     max_value=MIN_MAX_RANGE[1],
     format="YYYY-MM-DD",  
 )   
+    
+    # вшиваем даты слайдера в датасет
     orders = orders[(orders.order_datetime >= selected_min) & (orders.order_datetime <= selected_max)]
     pays = orders[orders.order_status == 'Paid']
     unpays = orders[orders.order_status == 'notpaid']
     fails = orders[orders.order_status == 'fail']
 
+
 # работа кнопки РФМ: делаем РФМ анализ и выводим на экран основные моменты
 if rfm_button:
 
-    #pays = pd.read_csv('pays.csv')
     st.subheader('Общая информация')
 
     # выводим на экран количество счетов
@@ -85,13 +103,19 @@ if rfm_button:
     st.plotly_chart(fig_dinamics)
     st.write('---')
 
+    # рекуренты
     st.subheader('Информация о рекурентах')
-    st.write(f'Количество рекурентов за период: **{pays[pays.recurrent == True].user_id.nunique()}** человек')
-    st.write(f'Сумма пожертвования рекурентов за период: **{pays[pays.recurrent == True].order_sum.sum():,}** рублей')
-    st.write(f'Среднее пожертвование рекурентов за период: **{pays[pays.recurrent == True].order_sum.mean():,.2f}** рублей')
-    
+
+    # выделяем рекурентов и не рекурентов
     recs = pays[pays.recurrent == True]
     unrecs = pays[pays.recurrent == False]
+
+    # информация по платежам и количеству рекурентов
+    st.write(f'Количество рекурентов за период: **{recs.user_id.nunique()}** человек')
+    st.write(f'Сумма пожертвования рекурентов за период: **{recs.order_sum.sum():,}** рублей')
+    st.write(f'Среднее пожертвование рекурентов за период: **{recs.order_sum.mean():,.2f}** рублей')
+    
+    # строим график по рекурентам
     fig_rec = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
     fig_rec.add_trace(go.Pie(labels=['Рекурент', 'Не рекурент'], 
                                   values=[recs.order_sum.sum(), unrecs.order_sum.sum()], 
@@ -109,6 +133,37 @@ if rfm_button:
     st.plotly_chart(fig_rec)
     st.write('---')
 
+    # приток / отток
+    st.subheader('Приток / отток благотворителей')
+    active = (
+        users[users.order_datetime >= (users.order_datetime.max() - pd.Timedelta('90d'))]
+        ['user_id'].unique().tolist()
+              )
+    st.write(f' Количество активных пользователей: {len(active)} человек (делали платежи не позднее, чем 90 дней назад)')
+
+    passive = (
+        users[(users.order_datetime <= (users.order_datetime.max() - pd.Timedelta('90d'))) 
+              & 
+              (~users.user_id.isin(active))]['user_id'].tolist()
+              )
+    st.write(f'Отток за все время: {len(passive)} человек')
+    users['year'] = pd.to_datetime(users.order_datetime).dt.year
+    passive_2024 = users[(users.year == 2024) & (~users.user_id.isin(active))]
+    st.write(f'Количество ушедших доноров, которые были активны в 2024 году: {passive_2024.user_id.nunique()} человек')
+
+    def convert_df(df):
+            # IMPORTANT: Cache the conversion to prevent computation on every rerun
+            return df.to_csv().encode("utf-8")
+
+    fresh_leavers = convert_df(passive_2024['user_id'])
+
+    st.download_button(
+            label="Скачать отток за 2024 год",
+            data=fresh_leavers,
+            file_name="left_2024_users.csv",
+            mime="text/csv",
+        )
+    
     # Неоплаченные счета и сбои платежей
     st.subheader('Неоплаченные пожертвования и ошибки в платежах')
     st.write(f'Всего неоплаченных счетов: **{unpays.shape[0]}**')
@@ -247,5 +302,3 @@ if rfm_button:
             file_name="rfm_users.csv",
             mime="text/csv",
         )
-
-        
