@@ -1,6 +1,7 @@
 # импорты
 import streamlit as st  # библиотека, которое создает приложение
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
@@ -84,7 +85,32 @@ if rfm_button:
     st.plotly_chart(fig_dinamics)
     st.write('---')
 
+    st.subheader('Информация о рекурентах')
+    st.write(f'Количество рекурентов за период: **{pays[pays.recurrent == True].user_id.nunique()}** человек')
+    st.write(f'Сумма пожертвования рекурентов за период: **{pays[pays.recurrent == True].order_sum.sum():,}** рублей')
+    st.write(f'Среднее пожертвование рекурентов за период: **{pays[pays.recurrent == True].order_sum.mean():,.2f}** рублей')
+    
+    recs = pays[pays.recurrent == True]
+    unrecs = pays[pays.recurrent == False]
+    fig_rec = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
+    fig_rec.add_trace(go.Pie(labels=['Рекурент', 'Не рекурент'], 
+                                  values=[recs.order_sum.sum(), unrecs.order_sum.sum()], 
+                                  name="В рублях"), 1, 1)
+    fig_rec.add_trace(go.Pie(labels=['Рекурент', 'Не рекурент'], 
+                                  values=[recs.order_sum.count(), unrecs.order_sum.count()], 
+                                  name="Количество"), 1, 2)
+
+    fig_rec.update_traces(hole=.6, hoverinfo="label+percent+name")
+
+    fig_rec.update_layout(
+        title_text="Доля рекурентов по количеству и платежам в общем объеме пожертвований",
+        annotations=[dict(text='В рублях', x=0.16, y=0.5, font_size=20, showarrow=False),
+                 dict(text='Количество', x=0.87, y=0.5, font_size=20, showarrow=False)])
+    st.plotly_chart(fig_rec)
+    st.write('---')
+
     # Неоплаченные счета и сбои платежей
+    st.subheader('Неоплаченные пожертвования и ошибки в платежах')
     st.write(f'Всего неоплаченных счетов: **{unpays.shape[0]}**')
     st.write(f'Сумма неоплаченных счетов: **{unpays.order_sum.sum():,}** рублей')
     st.write('---')
@@ -108,8 +134,6 @@ if rfm_button:
         annotations=[dict(text='В рублях', x=0.16, y=0.5, font_size=20, showarrow=False),
                  dict(text='Количество', x=0.87, y=0.5, font_size=20, showarrow=False)])
     st.plotly_chart(fig_mistakes)
-
-
 
     st.markdown('### RFM анализ')
     # определяем период анализа
