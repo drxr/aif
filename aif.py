@@ -1,5 +1,5 @@
 # импорты
-import streamlit as st  # это стримлит - библиотека, которое создает приложение
+import streamlit as st  # библиотека, которое создает приложение
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 pd.set_option('display.max_columns', None)
 plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_style('whitegrid')
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide")  # приложение во весь экран
 
 
 # титульный текст приложения
@@ -25,8 +25,10 @@ uploaded_file_channels = st.sidebar.file_uploader(label='Загрузите фа
 
 if uploaded_file_rfm is not None:
     # orders = pd.read_csv(uploaded_file)
-    orders = pd.read_csv(uploaded_file_rfm, sep=';', encoding='cp1251', usecols=[2, 3, 5, 17, 20, 21, 30])
-    orders.columns = ['order_datetime', 'channel_id', 'channel_name', 'order_aim', 'order_sum', 'order_status', 'user_id']
+    orders = pd.read_csv(uploaded_file_rfm, sep=';', encoding='cp1251', usecols=[2, 3, 5, 14, 15, 17, 20, 21, 30])
+    orders.columns = ['order_datetime', 'channel_id', 'channel_name', 
+                      'recurrent', 'repayment',
+                      'order_aim', 'order_sum', 'order_status', 'user_id']
     orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
     pays = orders[orders.order_status == 'Paid']
     unpays = orders[orders.order_status == 'notpaid']
@@ -39,11 +41,38 @@ if rfm_button:
 
     #pays = pd.read_csv('pays.csv')
     st.subheader('Общая информация')
+
     # выводим на экран количество счетов
     st.write(f'Всего оплаченных счетов: **{pays.shape[0]}**')
     st.write(f'Сумма оплаченных счетов: **{pays.order_sum.sum():,}** рублей')
+    mean_pay = pays.groupby('order_datetime')['order_sum'].mean().reset_index()
     st.write(f'Средний чек: **{pays.order_sum.sum()/ pays.shape[0]:.2f}** рублей')
+
+    # график динамики среднего чека
+    fig_mean = px.line(mean_pay, x="order_datetime", y="order_sum", title='Динамика среднего дневного пожертвования, руб.')
+    st.plotly_chart(fig_mean)
+
+    # бабахаем график с динамикой платежей
+    pays_line = pays.groupby('order_datetime')['order_sum'].sum().reset_index()
+
+    fig_dinamics = go.Figure()
+    fig_dinamics.add_traces(go.Scatter(x=pays_line.order_datetime, 
+                                       y=pays_line.order_sum, 
+                                       line=dict(color="lightgrey"),
+                                       mode='lines', name = 'Платежи'))
+    fig_dinamics.add_traces(go.Scatter(x=pays_line.order_datetime, 
+                                       y=pays_line.order_sum.rolling(15).mean(), 
+                                       line=dict(color="crimson", width=2),
+                                       mode='lines', name = 'Платежи скользящее среднее'))
+    fig_dinamics.update_layout(title_text="Динамика пожертвований по дням, руб.",
+        legend=dict(yanchor="top",
+                                  y=0.99,
+                                  xanchor="left", x=0.01,
+                                  orientation='h'))
+    st.plotly_chart(fig_dinamics)
     st.write('---')
+    
+    # Неоплаченные счета и сбои платежей
     st.write(f'Всего неоплаченных счетов: **{unpays.shape[0]}**')
     st.write(f'Сумма неоплаченных счетов: **{unpays.order_sum.sum():,}** рублей')
     st.write('---')
@@ -52,7 +81,6 @@ if rfm_button:
     min_date, max_date = pays.order_datetime.min(), pays.order_datetime.max()
 
     # График с ошибками в платежах
-    pays_line = pays.groupby('order_datetime')['order_sum'].sum().reset_index()
     fig_mistakes = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
     fig_mistakes.add_trace(go.Pie(labels=['Оплачено', 'Не оплачено', 'Ошибка'], 
                                   values=[pays.order_sum.sum(), unpays.order_sum.sum(), fails.order_sum.sum()], 
@@ -69,21 +97,7 @@ if rfm_button:
                  dict(text='Количество', x=0.87, y=0.5, font_size=20, showarrow=False)])
     st.plotly_chart(fig_mistakes)
 
-    # бабахаем график с динамикой платежей
-    fig_dinamics = go.Figure()
-    fig_dinamics.add_traces(go.Scatter(x=pays_line.order_datetime, 
-                                       y=pays_line.order_sum, 
-                                       line=dict(color="lightgrey"),
-                                       mode='lines', name = 'Платежи'))
-    fig_dinamics.add_traces(go.Scatter(x=pays_line.order_datetime, 
-                                       y=pays_line.order_sum.rolling(15).mean(), 
-                                       line=dict(color="crimson", width=2),
-                                       mode='lines', name = 'Платежи скользящее среднее'))
-    fig_dinamics.update_layout(legend=dict(yanchor="top",
-                                  y=0.99,
-                                  xanchor="left", x=0.01,
-                                  orientation='h'))
-    st.plotly_chart(fig_dinamics)
+
 
     st.markdown('### RFM анализ')
     # определяем период анализа
@@ -177,13 +191,8 @@ if rfm_button:
             y_min=0,
             y_max=500000,
         ),
-        'RFM сегмент': st.column_config.TextColumn(width='small'), # этот код и ниже уменьшает ширину колонок
-        'Человек в сегменте, чел.': st.column_config.NumberColumn(width='small'), # почитаейте про stramlit column_config
-        'Количество пожертвований, ед.': st.column_config.NumberColumn(width='small'), # шикарнейший инструмент для кастомизации
-        'Среднее пожертвование, руб.': st.column_config.NumberColumn(width='small'),
-        'Сумма пожертвований, руб.': st.column_config.NumberColumn(width='small'),
     },
-    hide_index=True, height=980)
+    height=980)
 
     final = pays[['user_id', 'RFM']]
 
