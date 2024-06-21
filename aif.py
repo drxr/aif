@@ -103,6 +103,13 @@ if rfm_button:
     st.plotly_chart(fig_dinamics)
     st.write('---')
 
+    pays['month'] = pd.to_datetime(pays.order_datetime).dt.to_period('M')
+    month_pays = pays.groupby('month')['order_sum'].sum().reset_index()
+    month_pays['month'] = month_pays.month.astype('str')
+    fig_months = px.bar(month_pays, y='order_sum', x='month', text_auto='.2s',
+            title="Помесячная сумма пожертвований, руб.")
+    st.plotly_chart(fig_months)
+
     # рекуренты
     st.subheader('Информация о рекурентах')
 
@@ -302,3 +309,5 @@ if rfm_button:
             file_name="rfm_users.csv",
             mime="text/csv",
         )
+
+        
