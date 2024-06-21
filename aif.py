@@ -6,6 +6,7 @@ import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
 
 # настройки
 pd.set_option('display.max_columns', None)
@@ -22,7 +23,7 @@ st.sidebar.subheader("Выберите опцию") # заголовок мен�
 uploaded_file_rfm = st.sidebar.file_uploader(label='Загрузите файлы c платежами для анализа (csv)', type=['csv'])
 rfm_button = st.sidebar.button('RFM анализ')
 uploaded_file_channels = st.sidebar.file_uploader(label='Загрузите файлы c пользователями для анализа (xlsx)', type=['xlsx'])
-
+    
 if uploaded_file_rfm is not None:
     # orders = pd.read_csv(uploaded_file)
     orders = pd.read_csv(uploaded_file_rfm, sep=';', encoding='cp1251', usecols=[2, 3, 5, 14, 15, 17, 20, 21, 30])
@@ -30,11 +31,22 @@ if uploaded_file_rfm is not None:
                       'recurrent', 'repayment',
                       'order_aim', 'order_sum', 'order_status', 'user_id']
     orders.order_datetime = pd.to_datetime(orders.order_datetime, dayfirst=True).dt.date
+    st.write('Файл с платежами успешно загружен и обработан')
+    st.write('Выберите период для анализа')
+    MIN_MAX_RANGE = (orders.order_datetime.min(), orders.order_datetime.max())
+    PRE_SELECTED_DATES = (orders.order_datetime.max() - pd.Timedelta('30d'), orders.order_datetime.max())
+    selected_min, selected_max = st.slider(
+    "Выбор границ анализируемого периода",
+    value=PRE_SELECTED_DATES,
+    step=timedelta(days=1),
+    min_value=MIN_MAX_RANGE[0],
+    max_value=MIN_MAX_RANGE[1],
+    format="YYYY-MM-DD",  
+)   
+    orders = orders[(orders.order_datetime >= selected_min) & (orders.order_datetime <= selected_max)]
     pays = orders[orders.order_status == 'Paid']
     unpays = orders[orders.order_status == 'notpaid']
     fails = orders[orders.order_status == 'fail']
-    pays.to_csv('pays.csv')
-    st.write('Файл с платежами успешно загружен и обработан')
 
 # работа кнопки РФМ: делаем РФМ анализ и выводим на экран основные моменты
 if rfm_button:
@@ -50,7 +62,6 @@ if rfm_button:
 
     # график динамики среднего чека
     fig_mean = px.line(mean_pay, x="order_datetime", y="order_sum", title='Динамика среднего дневного пожертвования, руб.')
-    fig_mean.update_traces(line_color='crimson', line_width=2)
     st.plotly_chart(fig_mean)
 
     # бабахаем график с динамикой платежей
@@ -72,7 +83,7 @@ if rfm_button:
                                   orientation='h'))
     st.plotly_chart(fig_dinamics)
     st.write('---')
-    
+
     # Неоплаченные счета и сбои платежей
     st.write(f'Всего неоплаченных счетов: **{unpays.shape[0]}**')
     st.write(f'Сумма неоплаченных счетов: **{unpays.order_sum.sum():,}** рублей')
