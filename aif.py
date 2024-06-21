@@ -136,113 +136,116 @@ if rfm_button:
     st.plotly_chart(fig_mistakes)
 
     st.markdown('### RFM анализ')
-    # определяем период анализа
-    st.write(f"Период анализа: с {min_date} по {max_date}, всего - {(max_date - min_date) / pd.Timedelta('1d')} дней")
-    # определяем период жизни донаторов
-    pays['period'] = (
-    pays.groupby('user_id')['order_datetime']
-    .transform(lambda cell: int((cell.max() - cell.min()) / pd.Timedelta('1d')) + 1)
-    )
+    if (selected_max - selected_min) / pd.Timedelta('1d') < 365:
+        st.write('Для RFM анализа необходимо указать период от года')
+    else:
+        # определяем период анализа
+        st.write(f"Период анализа: с {min_date} по {max_date}, всего - {(max_date - min_date) / pd.Timedelta('1d')} дней")
+        # определяем период жизни донаторов
+        pays['period'] = (
+        pays.groupby('user_id')['order_datetime']
+        .transform(lambda cell: int((cell.max() - cell.min()) / pd.Timedelta('1d')) + 1)
+        )
 
-    # определяем дату анализа (максимальная дата + 1 день) и выводим на экран
-    now = pays.order_datetime.max() + pd.Timedelta('1d')
-    st.write(f'Дата отсчета для RFM анализа: {now}')
+        # определяем дату анализа (максимальная дата + 1 день) и выводим на экран
+        now = pays.order_datetime.max() + pd.Timedelta('1d')
+        st.write(f'Дата отсчета для RFM анализа: {now}')
+        
+        # определяем РФМ значения
+        pays['R_value'] = pays.order_datetime.apply(lambda cell: int(((now - cell) / pd.Timedelta('1d'))))
+        pays['M_value'] = pays.groupby('user_id')['order_sum'].transform('sum')
+        pays['F_value'] = pays.groupby('user_id')['user_id'].transform('count') / pays.period
+
+        # бьем R на ранги
+        r_bins = [0, 90, 365, pays.R_value.max()]
+        r_labels = [3, 2, 1]
+        pays['R'] = pd.cut(pays.R_value, bins=r_bins, labels=r_labels)
+
+        # бьем F на ранги
+        f_bins = [0, .027, .11, pays.F_value.max()]
+        f_labels = [1, 2, 3]
+        pays['F'] = pd.cut(pays.F_value, bins=f_bins, labels=f_labels)
+
+        # бьем М на ранги
+        m_bins = [-0.1, 600, 2800, pays.M_value.max()]
+        m_labels = [1, 2, 3]
+        pays['M'] = pd.cut(pays.M_value, bins=m_bins, labels=m_labels)
+
+        # Сцеплаем ранги в общий ранг RFM
+        pays['RFM'] = pays.R.astype('str') + pays.F.astype('str') + pays.M.astype('str')
+
+        # st.markdown позволяет выводить текст с разметкой как в юпитере
+        st.markdown('**Описание сегментов**')
+        st.markdown('''
+                    Итого получаем таблицу с идентификаторами пользователя и сегментом (просьба заказчика). Метрики расчитывались следующим образом: 1 - плохо, 2 - терпимо, 3 - хорошо   
+    **R:** **1** - был давно (больше 546 дней), **2** - не заходил от 225 до 546 дней, **3** - был недавно (не более 225 дней с момента визита  
+    **F:** **1** - заходит не часто (не более 1 раза за 38 дней), **2** - средняя активность(1 заход в течение 9 - 38 дней),  **3** - высокая активность (чаще 1 раза в 9 дней)   
+    **M:** **1** - жадные (до 600 рублей за все время), **2** - средняя сумма (600-2800 рублей), **3** - щедрые (более 2800 рублей)
+                    ''')
+        st.markdown('''
+    |R - recency|F - frequency|M - monetary|
+    |:--|:--|:--|
+    |Время отсутствия|Частота заходов|Количество денег|
+    |**1** - был более 546 дней назад|**1** - заходит не чаще 0.027 раз в день|**1** - заплатил менее 600 рублей за все время|
+    |**2** - был от 546 до 225 дней назад|**2** - заходит от 0.027 до 0.11 раз в день|**2** - заплатил от 600 до 2800 рублей за все время|
+    |**3** - был менее 225 дней назад|**3** - заходит чаще 0.11 раз в день|**3** - заплатил более 2800 рублей за все время|
+    ''')
+
+        # готовим таблицу для RFM сегментов    
+        rfm_stats = pays.groupby('RFM').agg({'user_id':'nunique', 'order_sum': ['count', 'mean', 'sum']}).reset_index()
+        
+        rfm_stats.columns = ['RFM сегмент', 'Человек в сегменте, чел.',
+                        'Количество пожертвований, ед.', 'Среднее пожертвование, руб.',
+                        'Сумма пожертвований, руб.']
+        rfm_stats['test'] = rfm_stats['Сумма пожертвований, руб.']
+
+        st.write('---')
     
-    # определяем РФМ значения
-    pays['R_value'] = pays.order_datetime.apply(lambda cell: int(((now - cell) / pd.Timedelta('1d'))))
-    pays['M_value'] = pays.groupby('user_id')['order_sum'].transform('sum')
-    pays['F_value'] = pays.groupby('user_id')['user_id'].transform('count') / pays.period
+        test_df = pays[['order_datetime', 'order_sum', 'user_id', 'RFM']]
+        test_df['period'] = pd.to_datetime(test_df.order_datetime).dt.to_period('M')
+        test_df = test_df.groupby(['RFM', 'period'])['order_sum'].sum().reset_index()
+        test_df = test_df.sort_values(by='period')
+        
+        rfm_stats = rfm_stats.merge(test_df.groupby('RFM')['order_sum'].apply(list).reset_index(), left_on='RFM сегмент', right_on='RFM')
+        rfm_stats = rfm_stats.drop(columns=['RFM'])
 
-    # бьем R на ранги
-    r_bins = [0, 225, 547, pays.R_value.max()]
-    r_labels = [3, 2, 1]
-    pays['R'] = pd.cut(pays.R_value, bins=r_bins, labels=r_labels)
+        # выводим на экран итоговую таблицу
+        rfm_stats['Человек в сегменте, чел.'] =  rfm_stats['Человек в сегменте, чел.'].astype('float')
+        rfm_stats['Количество пожертвований, ед.'] = rfm_stats['Количество пожертвований, ед.'].astype('float')
+        rfm_stats['Сумма пожертвований, руб.'] = rfm_stats['Сумма пожертвований, руб.'].astype('float')
+        rfm_stats['test'] = rfm_stats['test'].astype('float')
 
-    # бьем F на ранги
-    f_bins = [0, .027, .11, pays.F_value.max()]
-    f_labels = [1, 2, 3]
-    pays['F'] = pd.cut(pays.F_value, bins=f_bins, labels=f_labels)
+        st.dataframe(rfm_stats.set_index('RFM сегмент'),
+                    column_config={
+            "test": st.column_config.ProgressColumn(  # этот код делает правую колонку с прогресс баром
+                "Сумма донаций",
+                help="Общая сумма донаций",
+                format="%f руб.",
+                min_value=0,
+                max_value=rfm_stats.test.max(),
+            ),
+            "order_sum": st.column_config.BarChartColumn(
+                "Платежи по месяцам",
+                help="The sales volume in the last 6 months",
+                y_min=0,
+                y_max=500000,
+            ),
+        },
+        height=980)
 
-    # бьем М на ранги
-    m_bins = [-0.1, 600, 2800, pays.M_value.max()]
-    m_labels = [1, 2, 3]
-    pays['M'] = pd.cut(pays.M_value, bins=m_bins, labels=m_labels)
+        final = pays[['user_id', 'RFM']]
 
-    # Сцеплаем ранги в общий ранг RFM
-    pays['RFM'] = pays.R.astype('str') + pays.F.astype('str') + pays.M.astype('str')
+        def convert_df(df):
+            # IMPORTANT: Cache the conversion to prevent computation on every rerun
+            return df.to_csv().encode("utf-8")
 
-    # st.markdown позволяет выводить текст с разметкой как в юпитере
-    st.markdown('**Описание сегментов**')
-    st.markdown('''
-                Итого получаем таблицу с идентификаторами пользователя и сегментом (просьба заказчика). Метрики расчитывались следующим образом: 1 - плохо, 2 - терпимо, 3 - хорошо   
-**R:** **1** - был давно (больше 546 дней), **2** - не заходил от 225 до 546 дней, **3** - был недавно (не более 225 дней с момента визита  
-**F:** **1** - заходит не часто (не более 1 раза за 38 дней), **2** - средняя активность(1 заход в течение 9 - 38 дней),  **3** - высокая активность (чаще 1 раза в 9 дней)   
-**M:** **1** - жадные (до 600 рублей за все время), **2** - средняя сумма (600-2800 рублей), **3** - щедрые (более 2800 рублей)
-                ''')
-    st.markdown('''
-|R - recency|F - frequency|M - monetary|
-|:--|:--|:--|
-|Время отсутствия|Частота заходов|Количество денег|
-|**1** - был более 546 дней назад|**1** - заходит не чаще 0.027 раз в день|**1** - заплатил менее 600 рублей за все время|
-|**2** - был от 546 до 225 дней назад|**2** - заходит от 0.027 до 0.11 раз в день|**2** - заплатил от 600 до 2800 рублей за все время|
-|**3** - был менее 225 дней назад|**3** - заходит чаще 0.11 раз в день|**3** - заплатил более 2800 рублей за все время|
-''')
+        csv = convert_df(final)
 
-    # готовим таблицу для RFM сегментов    
-    rfm_stats = pays.groupby('RFM').agg({'user_id':'nunique', 'order_sum': ['count', 'mean', 'sum']}).reset_index()
-    
-    rfm_stats.columns = ['RFM сегмент', 'Человек в сегменте, чел.',
-                     'Количество пожертвований, ед.', 'Среднее пожертвование, руб.',
-                     'Сумма пожертвований, руб.']
-    rfm_stats['test'] = rfm_stats['Сумма пожертвований, руб.']
+        st.download_button(
+            label="Скачать доноров с RFM сегментом",
+            data=csv,
+            file_name="rfm_users.csv",
+            mime="text/csv",
+        )
 
-    st.write('---')
-  
-    test_df = pays[['order_datetime', 'order_sum', 'user_id', 'RFM']]
-    test_df['period'] = pd.to_datetime(test_df.order_datetime).dt.to_period('M')
-    test_df = test_df.groupby(['RFM', 'period'])['order_sum'].sum().reset_index()
-    test_df = test_df.sort_values(by='period')
-    
-    rfm_stats = rfm_stats.merge(test_df.groupby('RFM')['order_sum'].apply(list).reset_index(), left_on='RFM сегмент', right_on='RFM')
-    rfm_stats = rfm_stats.drop(columns=['RFM'])
-
-    # выводим на экран итоговую таблицу
-    rfm_stats['Человек в сегменте, чел.'] =  rfm_stats['Человек в сегменте, чел.'].astype('float')
-    rfm_stats['Количество пожертвований, ед.'] = rfm_stats['Количество пожертвований, ед.'].astype('float')
-    rfm_stats['Сумма пожертвований, руб.'] = rfm_stats['Сумма пожертвований, руб.'].astype('float')
-    rfm_stats['test'] = rfm_stats['test'].astype('float')
-
-    st.dataframe(rfm_stats.set_index('RFM сегмент'),
-                   column_config={
-        "test": st.column_config.ProgressColumn(  # этот код делает правую колонку с прогресс баром
-            "Сумма донаций",
-            help="Общая сумма донаций",
-            format="%f руб.",
-            min_value=0,
-            max_value=rfm_stats.test.max(),
-        ),
-        "order_sum": st.column_config.BarChartColumn(
-            "Платежи по месяцам",
-            help="The sales volume in the last 6 months",
-            y_min=0,
-            y_max=500000,
-        ),
-    },
-    height=980)
-
-    final = pays[['user_id', 'RFM']]
-
-    def convert_df(df):
-        # IMPORTANT: Cache the conversion to prevent computation on every rerun
-        return df.to_csv().encode("utf-8")
-
-    csv = convert_df(final)
-
-    st.download_button(
-        label="Скачать доноров с RFM сегментом",
-        data=csv,
-        file_name="rfm_users.csv",
-        mime="text/csv",
-    )
-
-    
+        
