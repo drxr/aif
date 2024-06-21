@@ -50,6 +50,7 @@ if rfm_button:
 
     # график динамики среднего чека
     fig_mean = px.line(mean_pay, x="order_datetime", y="order_sum", title='Динамика среднего дневного пожертвования, руб.')
+    fig_mean.update_traces(line_color='crimson', line_width=2)
     st.plotly_chart(fig_mean)
 
     # бабахаем график с динамикой платежей
